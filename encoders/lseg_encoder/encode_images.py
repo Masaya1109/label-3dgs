@@ -323,7 +323,7 @@ def test(args):
     model = model.eval()
     model = model.cpu()
 
-    print(model)
+    # print(model)
 
     if args.export:
         torch.save(model.state_dict(), args.export + ".pth")
@@ -393,6 +393,20 @@ def test(args):
     print("scales", scales)
     print("test rgb dir", args.test_rgb_dir)
     print("outdir", args.outdir)
+
+    # ↓↓bicycle↓↓
+    # label_list = [0, 1, 2, 4, 6, 9, 11, 12, 17, 19, 20, 25, 32, 41, 69, 83, 91, 94, 115, 127]
+    # ↓↓truck↓↓
+    # label_list = [0, 1, 2, 3, 4, 5, 6, 8, 11, 12, 14, 15, 17, 18, 19, 20, 21, 25, 32, 53, 55, 69, 80, 83, 87, 89, 94, 114, 119, 121, 139, 149]
+    # ↓↓train↓↓
+    # label_list = [0, 1, 2, 3, 4, 6, 9, 11, 12, 13, 16, 17, 20, 21, 25, 32, 34, 46, 55, 60, 61, 69, 76, 80, 83, 91, 94, 114, 119, 123, 127, 148]    
+    # ↓↓drjohnson↓↓
+    # label_list = [0, 1, 3, 5, 7, 8, 10, 12, 14, 15, 18, 19, 20, 21, 22, 24, 27, 28, 30, 32, 35, 39, 41, 45, 47, 50, 53, 55, 57, 58, 62, 63, 65, 67, 69, 81, 82, 89, 94, 98, 101, 111, 115, 118, 120, 123, 124, 131, 144, 148]
+    # ↓↓playroom↓↓
+    # label_list = [0, 1, 3, 4, 5, 6, 7, 8, 10, 12, 14, 15, 18, 19, 20, 21, 23, 24, 28, 30, 32, 33, 34, 35, 39, 41, 45, 47, 50, 53, 55, 57, 58, 63, 65, 67, 69, 74, 76, 81, 82, 89, 91, 92, 94, 98, 111, 112, 114, 115, 118, 119, 120, 121, 123, 124, 125, 126, 127, 131, 135, 139, 144, 145, 148, 149]
+
+    label_list = []
+
     for i, (image, dst) in enumerate(tbar):
         """
         if "Replica_Dataset" in args.test_rgb_dir and not (i in train_ids or i in test_ids):
@@ -404,28 +418,82 @@ def test(args):
         """
 
         with torch.no_grad():
-            print(image[0].shape, "image.shape -")
-            # print([im.shape for im in image]) # [torch.Size([3, 1438, 1918])]
-            #if image[0].shape[-1] > 1008:
-            #    scale_factor = 1008 / image[0].shape[-1]
-            if image[0].shape[-1] > w:
-                # scale_factor = w / image[0].shape[-1]
-                # print("resize", image[0].shape, "to", [int(s * scale_factor) for s in image[0].shape])
-                print("resize", image[0].shape, "to", (h, w))
-                image = [
-                    F.interpolate(
-                        img[None],
-                        size=(h, w),
-                        # scale_factor=scale_factor,
-                        mode="bilinear",
-                        align_corners=True,
-                    )[0] for img in image]
-                print(image[0].shape)
+            # print(image[0].shape, "image.shape -")
+            # # print([im.shape for im in image]) # [torch.Size([3, 1438, 1918])]
+            # #if image[0].shape[-1] > 1008:
+            # #    scale_factor = 1008 / image[0].shape[-1]
+            # if image[0].shape[-1] > w:
+            #     # scale_factor = w / image[0].shape[-1]
+            #     # print("resize", image[0].shape, "to", [int(s * scale_factor) for s in image[0].shape])
+            #     print("resize", image[0].shape, "to", (h, w))
+            #     image = [
+            #         F.interpolate(
+            #             img[None],
+            #             size=(h, w),
+            #             # scale_factor=scale_factor,
+            #             mode="bilinear",
+            #             align_corners=True,
+            #         )[0] for img in image]
+            #     print(image[0].shape)
             outputs = evaluator.parallel_forward(image)
             print(image[0].shape, "image.shape")
             print("start pred")
             start = time.time()
-            output_features = evaluator.parallel_forward(image, return_feature=True)
+            # output_features = evaluator.parallel_forward(image, return_feature=True)
+            # print(output_features.shape, output_features.min(), output_features.max())
+            # print(type(outputs), type(output_features))
+            print("done pred", start - time.time())
+            # list
+            print("start make_pred")
+            start = time.time()
+            predicts = [
+                testset.make_pred(torch.max(output, 1)[1].cpu().numpy())
+                for output in outputs
+            ]
+            print("done makepred", start - time.time())
+
+        for predict, impath, img in zip(predicts, dst, image):
+            # np.unique(predict - 1)の結果をリストにしてlabel_listに追加
+            label_list.extend(list(np.unique(predict - 1)))
+
+            # 重複を取り除き、ソートしてリストにする
+            label_list = list(sorted(set(label_list)))
+    print(label_list)
+    print(len(label_list))
+
+    for i, (image, dst) in enumerate(tbar):
+        """
+        if "Replica_Dataset" in args.test_rgb_dir and not (i in train_ids or i in test_ids):
+            impath = dst[0]
+            print("save dummy array for", impath)
+            fmap = np.zeros(1)  # dummy
+            np.savez_compressed(os.path.join(outdir, os.path.splitext(impath)[0] + "_fmap__ori_w{}xh{}.npz".format(w, h)), fmap)
+            continue
+        """
+
+        with torch.no_grad():
+            # print(image[0].shape, "image.shape -")
+            # print([im.shape for im in image]) # [torch.Size([3, 1438, 1918])]
+            # if image[0].shape[-1] > 1008:
+            #    scale_factor = 1008 / image[0].shape[-1]
+            # if image[0].shape[-1] > w:
+            #     # scale_factor = w / image[0].shape[-1]
+            #     # print("resize", image[0].shape, "to", [int(s * scale_factor) for s in image[0].shape])
+            #     print("resize", image[0].shape, "to", (h, w))
+            #     image = [
+            #         F.interpolate(
+            #             img[None],
+            #             size=(h, w),
+            #             # scale_factor=scale_factor,
+            #             mode="bilinear",
+            #             align_corners=True,
+            #         )[0] for img in image]
+            #     print(image[0].shape)
+            outputs = evaluator.parallel_forward(image)
+            print(image[0].shape, "image.shape")
+            print("start pred")
+            start = time.time()
+            # output_features = evaluator.parallel_forward(image, return_feature=True)
             # print(output_features.shape, output_features.min(), output_features.max())
             # print(type(outputs), type(output_features))
             print("done pred", start - time.time())
@@ -439,95 +507,26 @@ def test(args):
             print("done makepred", start - time.time())
             # output_features = [o.cpu().numpy().astype(np.float16) for o in output_features]
 
-        for predict, impath, img, fmap in zip(predicts, dst, image, output_features):
-            # prediction mask
-            # mask = utils.get_mask_pallete(predict - 1, args.dataset)
-            mask = utils.get_mask_pallete(predict - 1, 'detail')
-            outname = os.path.splitext(impath)[0] + ".png"
-            mask.save(os.path.join(outdir, outname))
+        # for predict, impath, img, fmap in zip(predicts, dst, image, output_features):
+        for predict, impath, img in zip(predicts, dst, image):
+            input_data = predict - 1
+            # output_shape = (360, 480)
+            # output_data = np.zeros(output_shape, dtype=int)
 
-            # vis from accumulation of prediction
-            mask = torch.tensor(np.array(mask.convert("RGB"), "f")) / 255.0
-            vis_img = (img + 1) / 2.
-            vis_img = vis_img.permute(1, 2, 0)  # ->hwc
-            vis1 = vis_img
-            vis2 = vis_img * 0.4 + mask * 0.6
-            vis3 = mask
-            vis = torch.cat([vis1, vis2, vis3], dim=1)
-            Image.fromarray((vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(outdir, outname + "_vis.png"))
+            # # 各インデックスに対応するチャネルに 1 を設定
+            # for i, index in enumerate(label_list):
+            #     output_data[i] = (input_data[0] == index).astype(int)
 
-            # new_palette = get_new_pallete(len(labels))
-            # seg, patches = get_new_mask_pallete(predict, new_palette, labels=labels)
-            # print(predict.min(), predict.max())
-            seg, patches = get_legend_patch(predict - 1, adepallete, labels)
-            seg = seg.convert("RGBA")
-            plt.figure()
-            plt.axis('off')
-            plt.imshow(seg)
-            #plt.legend(handles=patches)
-            plt.legend(handles=patches, prop={'size': 8}, ncol=4)
-            plt.savefig(os.path.join(outdir, outname + "_legend.png"), format="png", dpi=300, bbox_inches="tight")
-            plt.clf()
-            plt.close()
 
-            ###############################
-            # print(fmap.shape)  # torch.Size([1, 512, 512, 683])
-            #print(fmap.shape, h, w)
-            start = time.time()
-            ###
-            # save unnormalized image feature
-            unnormalized_fmap = fmap[0]  # [512, h, w]
-            unnormalized_fmap = unnormalized_fmap.cpu().numpy().astype(np.float16)
-            torch.save(torch.tensor(unnormalized_fmap).half(), os.path.join(outdir, os.path.splitext(impath)[0] + "_fmap_CxHxW.pt"))
+            # print(output_data.shape)
+            print(input_data[0])
 
-            fmap = F.interpolate(fmap, size=(h, w), mode='bilinear', align_corners=False)  # [1, 512, h, w]
-            fmap = F.normalize(fmap, dim=1)  # normalize
-            #print(time.time() - start)
-            #print("done interpolate")
-
-            if pca is None:
-                print("calculate PCA based on 1st image", impath)
-                pca = sklearn.decomposition.PCA(3, random_state=42)
-                f_samples = fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1])[::3].cpu().numpy()
-                transformed = pca.fit_transform(f_samples)
-                print(pca)
-                print("pca.explained_variance_ratio_", pca.explained_variance_ratio_.tolist())
-                print("pca.singular_values_", pca.singular_values_.tolist())
-                feature_pca_mean = torch.tensor(f_samples.mean(0)).float().cuda()
-                feature_pca_components = torch.tensor(pca.components_).float().cuda()
-                q1, q99 = np.percentile(transformed, [1, 99])
-                feature_pca_postprocess_sub = q1
-                feature_pca_postprocess_div = (q99 - q1)
-                print(q1, q99)
-                del f_samples
-                torch.save({"pca": pca, "feature_pca_mean": feature_pca_mean, "feature_pca_components": feature_pca_components,
-                            "feature_pca_postprocess_sub": feature_pca_postprocess_sub, "feature_pca_postprocess_div": feature_pca_postprocess_div},
-                           os.path.join(outdir, "pca_dict.pt"))
-
-            #print("start imgsave")
-            start = time.time()
-            vis_feature = (fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1]) - feature_pca_mean[None, :]) @ feature_pca_components.T
-            vis_feature = (vis_feature - feature_pca_postprocess_sub) / feature_pca_postprocess_div
-            vis_feature = vis_feature.clamp(0.0, 1.0).float().reshape((fmap.shape[2], fmap.shape[3], 3)).cpu()
-            Image.fromarray((vis_feature.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(outdir, outname + "_feature_vis.png"))
-            #print(time.time() - start)
-            #print("done imgsave")
-
-            fmap = fmap[0]  # [512, h, w]
-            fmap = fmap.cpu().numpy().astype(np.float16)
-            # np.save(os.path.join(outdir, os.path.splitext(impath)[0] + "_fmap__ori_w{}xh{}.npy".format(w, h)), fmap)
-            #print("start savez")
-            #start = time.time()
-            #np.savez_compressed(os.path.join(outdir, os.path.splitext(impath)[0] + "_fmap__ori_w{}xh{}.npz".format(w, h)), fmap)  # 70% filesize
-            #print(time.time() - start)
-            #print("done savez")
-            print("start save")
-            start = time.time()
-            # np.save(os.path.join(outdir, os.path.splitext(impath)[0] + "_fmap__ori_w{}xh{}.npy".format(w, h)), fmap)
-            ###
-            # torch.save(torch.tensor(fmap).half(), os.path.join(outdir, os.path.splitext(impath)[0] + "_fmap_CxHxW.pt"))
-            print(time.time() - start)
-            # print("done save")
+            label_transformed = torch.zeros_like(torch.tensor(input_data[0]))
+            for idx, value in enumerate(label_list):
+                label_transformed[input_data[0] == value] = idx
+            label = label_transformed.cuda()
+            print(label)
+            torch.save(torch.tensor(label), os.path.join(outdir, os.path.splitext(impath)[0] + "_label_CxHxW.pt"))
  
 
 

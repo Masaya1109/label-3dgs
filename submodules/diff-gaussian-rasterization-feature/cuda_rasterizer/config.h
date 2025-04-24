@@ -14,6 +14,10 @@
 
 #define NUM_CHANNELS 3 // Default 3, RGB
 #define NUM_SEMANTIC_CHANNELS 128 // Subject to change
+/* TODO */
+// #define NUM_CLASSES 32
+#define NUM_CLASSES 50
+// #define NUM_CLASSES 66
 
 #define BLOCK_X 16
 #define BLOCK_Y 16

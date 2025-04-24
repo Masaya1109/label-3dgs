@@ -12,7 +12,7 @@
 import os
 import torch
 from random import randint
-from utils.loss_utils import l1_loss, ssim, tv_loss 
+from utils.loss_utils import l1_loss, ssim, tv_loss, cross_entropy_loss
 from gaussian_renderer import render, network_gui
 import sys
 from scene import Scene, GaussianModel
@@ -39,18 +39,18 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
     gaussians = GaussianModel(dataset.sh_degree)
     scene = Scene(dataset, gaussians)
 
-    # 2D semantic feature map CNN decoder
-    viewpoint_stack = scene.getTrainCameras().copy()
-    viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
-    gt_feature_map = viewpoint_cam.semantic_feature.cuda()
-    feature_out_dim = gt_feature_map.shape[0]
+    # # 2D semantic feature map CNN decoder
+    # viewpoint_stack = scene.getTrainCameras().copy()
+    # viewpoint_cam = viewpoint_stack.pop(randint(0, len(viewpoint_stack)-1))
+    # gt_feature_map = viewpoint_cam.semantic_feature.cuda()
+    # feature_out_dim = gt_feature_map.shape[0]
 
     
     # speed up
-    if dataset.speedup:
-        feature_in_dim = int(feature_out_dim/4)
-        cnn_decoder = CNN_decoder(feature_in_dim, feature_out_dim)
-        cnn_decoder_optimizer = torch.optim.Adam(cnn_decoder.parameters(), lr=0.0001)
+    # if dataset.speedup:
+    #     feature_in_dim = int(feature_out_dim/4)
+    #     cnn_decoder = CNN_decoder(feature_in_dim, feature_out_dim)
+    #     cnn_decoder_optimizer = torch.optim.Adam(cnn_decoder.parameters(), lr=0.0001)
 
 
     gaussians.training_setup(opt)
@@ -89,20 +89,39 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
         if (iteration - 1) == debug_from:
             pipe.debug = True
         render_pkg = render(viewpoint_cam, gaussians, pipe, background)
-        
 
-        feature_map, image, viewspace_point_tensor, visibility_filter, radii = render_pkg["feature_map"], render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
-        
+        # feature_map, image, viewspace_point_tensor, visibility_filter, radii = render_pkg["feature_map"], render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
+        label, image, viewspace_point_tensor, visibility_filter, radii = render_pkg["label"], render_pkg["render"], render_pkg["viewspace_points"], render_pkg["visibility_filter"], render_pkg["radii"]
 
         # Loss
         gt_image = viewpoint_cam.original_image.cuda()
         Ll1 = l1_loss(image, gt_image)
-        gt_feature_map = viewpoint_cam.semantic_feature.cuda()
-        feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) 
-        if dataset.speedup:
-            feature_map = cnn_decoder(feature_map)
-        Ll1_feature = l1_loss(feature_map, gt_feature_map) 
-        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + 1.0 * Ll1_feature 
+        # gt_feature_map = viewpoint_cam.semantic_feature.cuda()
+        gt_label = viewpoint_cam.label
+        
+        """
+        !!! this is too bad code leading to bad consistency of segmentation result in dataset !!!
+
+
+        unique_values = torch.unique(gt_label)
+        sorted_values, sorted_indices = torch.sort(unique_values)
+        
+        gt_label_transformed = torch.zeros_like(gt_label)
+        for idx, value in enumerate(sorted_values):
+            gt_label_transformed[gt_label == value] = idx
+        gt_label = gt_label_transformed.cuda()
+        """
+        
+ 
+        # feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) 
+        # if dataset.speedup:
+        #     feature_map = cnn_decoder(feature_map)
+
+        # Ll1_feature = l1_loss(feature_map, gt_feature_map)
+        label_softmax = torch.softmax(label, dim=0)
+        
+        Lce_label = cross_entropy_loss(label_softmax, gt_label)
+        loss = (1.0 - opt.lambda_dssim) * Ll1 + opt.lambda_dssim * (1.0 - ssim(image, gt_image)) + 0.05 * Lce_label 
 
         loss.backward()
         iter_end.record()
@@ -117,13 +136,13 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
                 progress_bar.close()
 
             # Log and save
-            training_report(tb_writer, iteration, Ll1, Ll1_feature, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background)) 
+            training_report(tb_writer, iteration, Ll1, Lce_label, loss, l1_loss, iter_start.elapsed_time(iter_end), testing_iterations, scene, render, (pipe, background)) 
             if (iteration in saving_iterations):
                 print("\n[ITER {}] Saving Gaussians".format(iteration))
                 scene.save(iteration)
-                print("\n[ITER {}] Saving feature decoder ckpt".format(iteration))
-                if dataset.speedup:
-                    torch.save(cnn_decoder.state_dict(), scene.model_path + "/decoder_chkpnt" + str(iteration) + ".pth")
+                print("\n[ITER {}] Saving label decoder ckpt".format(iteration))
+                # if dataset.speedup:
+                #     torch.save(cnn_decoder.state_dict(), scene.model_path + "/decoder_chkpnt" + str(iteration) + ".pth")
   
 
             # Densification
@@ -144,9 +163,9 @@ def training(dataset, opt, pipe, testing_iterations, saving_iterations, checkpoi
             if iteration < opt.iterations:
                 gaussians.optimizer.step()
                 gaussians.optimizer.zero_grad(set_to_none = True)
-                if dataset.speedup:
-                    cnn_decoder_optimizer.step()
-                    cnn_decoder_optimizer.zero_grad(set_to_none = True)
+                # if dataset.speedup:
+                #     cnn_decoder_optimizer.step()
+                #     cnn_decoder_optimizer.zero_grad(set_to_none = True)
 
             if (iteration in checkpoint_iterations):
                 print("\n[ITER {}] Saving Checkpoint".format(iteration))
@@ -200,10 +219,10 @@ def prepare_output_and_logger(args):
         print("Tensorboard not available: not logging progress")
     return tb_writer
 
-def training_report(tb_writer, iteration, Ll1, Ll1_feature, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
+def training_report(tb_writer, iteration, Ll1, Lce_label, loss, l1_loss, elapsed, testing_iterations, scene : Scene, renderFunc, renderArgs):
     if tb_writer:
         tb_writer.add_scalar('train_loss_patches/l1_loss', Ll1.item(), iteration)
-        tb_writer.add_scalar('train_loss_patches/l1_loss_feature', Ll1_feature.item(), iteration) 
+        tb_writer.add_scalar('train_loss_patches/cross_entropy_label', Lce_label.item(), iteration) 
         tb_writer.add_scalar('train_loss_patches/total_loss', loss.item(), iteration)
         tb_writer.add_scalar('iter_time', elapsed, iteration)
 

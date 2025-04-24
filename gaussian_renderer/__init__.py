@@ -236,16 +236,19 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             shs = pc.get_features
     else:
         colors_precomp = override_color
-    semantic_feature = pc.get_semantic_feature
+    # semantic_feature = pc.get_semantic_feature
+    label = pc.get_label
     var_loss = torch.zeros(1,viewpoint_camera.image_height,viewpoint_camera.image_width) ###d
 
     # Rasterize visible Gaussians to image, obtain their radii (on screen). 
-    rendered_image, feature_map, radii, depth = rasterizer(
+    # rendered_image, feature_map, radii, depth = rasterizer(
+    rendered_image, label, radii, depth = rasterizer(
         means3D = means3D,
         means2D = means2D,
         shs = shs,
         colors_precomp = colors_precomp,
-        semantic_feature = semantic_feature, 
+        # semantic_feature = semantic_feature,
+        labels = label, 
         opacities = opacity,
         scales = scales,
         rotations = rotations,
@@ -257,6 +260,7 @@ def render(viewpoint_camera, pc : GaussianModel, pipe, bg_color : torch.Tensor, 
             "viewspace_points": screenspace_points,
             "visibility_filter" : radii > 0,
             "radii": radii,
-            'feature_map': feature_map,
+            # 'feature_map': feature_map,
+            "label": label,
             "depth": depth} ###d
 

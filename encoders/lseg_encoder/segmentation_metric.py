@@ -384,6 +384,7 @@ class FeatureImageFolderLoader(enc_ds.ADE20KSegmentation):#(torch.utils.data.Dat
         self.transform = transform
         self.student_feature_root = student_feature_root
         self.teacher_feature_root = teacher_feature_root
+        print(self.teacher_feature_root)
         # self.gt_label_root = gt_label_root
         self.image_root = image_root
 
@@ -435,7 +436,7 @@ def get_gttest_folder_features(fea_folder):
         numbers = re.findall(r'\d+', filename)
         return [int(num) for num in numbers]  # returns a list of numbers for multi-level sorting
 
-    glist = glob.glob(fea_folder.rstrip("/") + '/rgb_*fmap_CxHxW.pt')
+    glist = glob.glob(fea_folder.rstrip("/") + '/*fmap_CxHxW.pt')
     sorted_list = sorted(glist, key=numerical_sort_key)
     
     # Select every 8th file from the sorted list

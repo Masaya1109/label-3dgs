@@ -17,6 +17,9 @@ from math import exp
 def l1_loss(network_output, gt):
     return torch.abs((network_output - gt)).mean()
 
+def cross_entropy_loss(network_output, gt):
+    return F.cross_entropy(network_output.unsqueeze(0), gt.unsqueeze(0))
+
 def l2_loss(network_output, gt):
     return ((network_output - gt) ** 2).mean()
 

@@ -35,9 +35,12 @@ class CameraInfo(NamedTuple):
     image_name: str
     width: int
     height: int
-    semantic_feature: torch.tensor 
-    semantic_feature_path: str 
-    semantic_feature_name: str 
+    # semantic_feature: torch.tensor 
+    # semantic_feature_path: str 
+    # semantic_feature_name: str 
+    label: np.array
+    label_path: str
+    label_name: str
 
 
 class SceneInfo(NamedTuple):
@@ -46,7 +49,8 @@ class SceneInfo(NamedTuple):
     test_cameras: list
     nerf_normalization: dict
     ply_path: str
-    semantic_feature_dim: int 
+    # semantic_feature_dim: int 
+    label_dim: int
 
 def getNerfppNorm(cam_info):
     def get_center_and_diag(cam_centers):
@@ -71,7 +75,9 @@ def getNerfppNorm(cam_info):
 
     return {"translate": translate, "radius": radius}
 
-def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, semantic_feature_folder):
+def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, 
+                    #   semantic_feature_folder
+                      label_folder):
     cam_infos = []
     for idx, key in enumerate(cam_extrinsics):
         sys.stdout.write('\r')
@@ -106,16 +112,22 @@ def readColmapCameras(cam_extrinsics, cam_intrinsics, images_folder, semantic_fe
         image_name = os.path.basename(image_path).split(".")[0]
         image = Image.open(image_path) 
 
-        
-        semantic_feature_path = os.path.join(semantic_feature_folder, image_name) + '_fmap_CxHxW.pt' 
-        semantic_feature_name = os.path.basename(semantic_feature_path).split(".")[0]
-        semantic_feature = torch.load(semantic_feature_path) 
+        # semantic_feature_path = os.path.join(semantic_feature_folder, image_name) + '_fmap_CxHxW.pt'
+        # semantic_feature_name = os.path.basename(semantic_feature_path).split(".")[0]
+        # semantic_feature = torch.load(semantic_feature_path) 
+        label_path = os.path.join(label_folder, image_name) + '_label_CxHxW.pt'
+        label_name = os.path.basename(label_path).split(".")[0]
+        label = torch.load(label_path, weights_only=True)
 
         cam_info = CameraInfo(uid=uid, R=R, T=T, FovY=FovY, FovX=FovX, image=image,
                               image_path=image_path, image_name=image_name, width=width, height=height,
-                              semantic_feature=semantic_feature,
-                              semantic_feature_path=semantic_feature_path,
-                              semantic_feature_name=semantic_feature_name) 
+                            #   semantic_feature=semantic_feature,
+                            #   semantic_feature_path=semantic_feature_path,
+                            #   semantic_feature_name=semantic_feature_name
+                              label = label,
+                              label_path = label_path,
+                              label_name = label_name
+                              ) 
         cam_infos.append(cam_info)
     sys.stdout.write('\n')
     return cam_infos
@@ -162,14 +174,24 @@ def readColmapSceneInfo(path, foundation_model, images, eval, llffhold=8):
     if foundation_model =='sam':
         semantic_feature_dir = "sam_embeddings" 
     elif foundation_model =='lseg':
-        semantic_feature_dir = "rgb_feature_langseg" 
+        # semantic_feature_dir = "rgb_feature_langseg" 
+        label_dir = "rgb_feature_langseg"
     cam_infos_unsorted = readColmapCameras(cam_extrinsics=cam_extrinsics, cam_intrinsics=cam_intrinsics, 
-                                           images_folder=os.path.join(path, reading_dir), semantic_feature_folder=os.path.join(path, semantic_feature_dir))
+                                           images_folder=os.path.join(path, reading_dir), 
+                                        #    semantic_feature_folder=os.path.join(path, semantic_feature_dir),
+                                           label_folder=os.path.join(path, label_dir),
+                                           )
     cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : x.image_name)
     ###cam_infos = sorted(cam_infos_unsorted.copy(), key = lambda x : int(x.image_name.split('.')[0])) ### if img name is number
     # cam_infos =cam_infos[:30] ###: for scannet only
     # print(cam_infos)
-    semantic_feature_dim = cam_infos[0].semantic_feature.shape[0]
+    # semantic_feature_dim = cam_infos[0].semantic_feature.shape[0]
+    
+    # TODO
+    # label_dim = cam_infos[0].label
+    # label_dim = 32
+    # label_dim = 50
+    label_dim = 66
 
     if eval:
         train_cam_infos = [c for idx, c in enumerate(cam_infos) if idx % llffhold != 2] # avoid 1st to be test view
@@ -202,7 +224,8 @@ def readColmapSceneInfo(path, foundation_model, images, eval, llffhold=8):
                            test_cameras=test_cam_infos,
                            nerf_normalization=nerf_normalization,
                            ply_path=ply_path,
-                           semantic_feature_dim=semantic_feature_dim) 
+                        #    semantic_feature_dim=semantic_feature_dim,
+                           label_dim=label_dim) 
     return scene_info
 
 def readCamerasFromTransforms(path, transformsfile, white_background, semantic_feature_folder, extension=".png"): 

@@ -56,7 +56,9 @@ class ModelParams(ParamGroup):
         self.data_device = "cuda"
         self.eval = False
         self.speedup = False ###
-        self.render_items = ['RGB', 'Depth', 'Edge', 'Normal', 'Curvature', 'Feature Map']
+        self.render_items = ['RGB', 'Depth', 'Edge', 'Normal', 'Curvature', 
+                            #  'Feature Map',
+                            'Label']
         super().__init__(parser, "Loading Parameters", sentinel)
 
     def extract(self, args):
@@ -83,7 +85,8 @@ class OptimizationParams(ParamGroup):
         self.scaling_lr = 0.005
         self.rotation_lr = 0.001
 #################################################
-        self.semantic_feature_lr = 0.001 
+        # self.semantic_feature_lr = 0.001 
+        self.label_lr = 0.001
 #################################################
         self.percent_dense = 0.01
         self.lambda_dssim = 0.2

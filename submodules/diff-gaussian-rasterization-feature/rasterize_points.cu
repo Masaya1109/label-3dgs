@@ -37,7 +37,8 @@ RasterizeGaussiansCUDA(
 	const torch::Tensor& background,
 	const torch::Tensor& means3D,
     const torch::Tensor& colors,
-	const torch::Tensor& semantic_feature, /***/
+	// const torch::Tensor& semantic_feature, /***/
+	const torch::Tensor& labels,
     const torch::Tensor& opacity,
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
@@ -70,7 +71,8 @@ RasterizeGaussiansCUDA(
 
   torch::Tensor radii = torch::full({P}, 0, means3D.options().dtype(torch::kInt32));
 
-  torch::Tensor out_feature_map = torch::full({NUM_SEMANTIC_CHANNELS, H, W}, 0.0, float_opts); /***/
+//   torch::Tensor out_feature_map = torch::full({NUM_SEMANTIC_CHANNELS, H, W}, 0.0, float_opts); /***/
+  torch::Tensor out_label = torch::full({NUM_CLASSES, H, W}, 0.0, float_opts);
   
   torch::Device device(torch::kCUDA);
   torch::TensorOptions options(torch::kByte);
@@ -100,7 +102,12 @@ RasterizeGaussiansCUDA(
 		means3D.contiguous().data<float>(),
 		sh.contiguous().data_ptr<float>(),
 		colors.contiguous().data<float>(),
-		semantic_feature.contiguous().data_ptr<float>(), /***/ 
+		// semantic_feature.contiguous().data_ptr<float>(), /***/ 
+		
+		/* TODO */
+		labels.contiguous().data<float>(),
+		// labels.contiguous().data_ptr<float>(),
+		
 		opacity.contiguous().data<float>(), 
 		scales.contiguous().data_ptr<float>(),
 		scale_modifier,
@@ -113,14 +120,16 @@ RasterizeGaussiansCUDA(
 		tan_fovy,
 		prefiltered,
 		out_color.contiguous().data<float>(),
-		out_feature_map.contiguous().data<float>(), /***/
+		// out_feature_map.contiguous().data<float>(), /***/
+		out_label.contiguous().data<float>(),
 		out_depth.contiguous().data<float>(),
 		radii.contiguous().data<int>(),
 		debug
 );
   }
   
-  return std::make_tuple(rendered, out_color, out_feature_map, out_depth, radii, geomBuffer, binningBuffer, imgBuffer); /******/
+//   return std::make_tuple(rendered, out_color, out_feature_map, out_depth, radii, geomBuffer, binningBuffer, imgBuffer); /******/
+  return std::make_tuple(rendered, out_color, out_label, out_depth, radii, geomBuffer, binningBuffer, imgBuffer); /******/
 }
 
 std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor> /***/
@@ -129,7 +138,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const torch::Tensor& means3D,
 	const torch::Tensor& radii,
     const torch::Tensor& colors,
-	const torch::Tensor& semantic_feature, /***/
+	// const torch::Tensor& semantic_feature, /***/
+	const torch::Tensor& labels,
 	const torch::Tensor& scales,
 	const torch::Tensor& rotations,
 	const float scale_modifier,
@@ -139,7 +149,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	const float tan_fovx,
 	const float tan_fovy,
     const torch::Tensor& dL_dout_color,
-	const torch::Tensor& dL_dout_feature, /*************/
+	// const torch::Tensor& dL_dout_feature, /*************/
+	const torch::Tensor& dL_dout_label,
 	const torch::Tensor& dL_dout_depth,
 	const torch::Tensor& sh,
 	const int degree,
@@ -163,7 +174,9 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
   torch::Tensor dL_dmeans3D = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_dmeans2D = torch::zeros({P, 3}, means3D.options());
   torch::Tensor dL_dcolors = torch::zeros({P, NUM_CHANNELS}, means3D.options());
-  torch::Tensor dL_dsemantic_feature = torch::zeros({P, semantic_feature.size(1), NUM_SEMANTIC_CHANNELS}, means3D.options()); /***/ 
+//   torch::Tensor dL_dsemantic_feature = torch::zeros({P, semantic_feature.size(1), NUM_SEMANTIC_CHANNELS}, means3D.options()); /***/ 
+  /* TODO */
+  torch::Tensor dL_dlabels = torch::zeros({P, NUM_CLASSES}, means3D.options());
   torch::Tensor dL_dconic = torch::zeros({P, 2, 2}, means3D.options());
   torch::Tensor dL_dopacity = torch::zeros({P, 1}, means3D.options());
   torch::Tensor dL_dcov3D = torch::zeros({P, 6}, means3D.options());
@@ -180,7 +193,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  means3D.contiguous().data<float>(),
 	  sh.contiguous().data<float>(),
 	  colors.contiguous().data<float>(),
-	  semantic_feature.contiguous().data<float>(), /***/
+	//   semantic_feature.contiguous().data<float>(), /***/
+	  labels.contiguous().data<float>(),
 	  scales.data_ptr<float>(),
 	  scale_modifier,
 	  rotations.data_ptr<float>(),
@@ -195,13 +209,15 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  reinterpret_cast<char*>(binningBuffer.contiguous().data_ptr()),
 	  reinterpret_cast<char*>(imageBuffer.contiguous().data_ptr()),
 	  dL_dout_color.contiguous().data<float>(),
-	  dL_dout_feature.contiguous().data<float>(), /***************************/
+	//   dL_dout_feature.contiguous().data<float>(), /***************************/
+	  dL_dout_label.contiguous().data<float>(),
 	  dL_dout_depth.contiguous().data<float>(),
 	  dL_dmeans2D.contiguous().data<float>(),
 	  dL_dconic.contiguous().data<float>(),  
 	  dL_dopacity.contiguous().data<float>(),
 	  dL_dcolors.contiguous().data<float>(),
-	  dL_dsemantic_feature.contiguous().data<float>(), /***************************/
+	//   dL_dsemantic_feature.contiguous().data<float>(), /***************************/
+	  dL_dlabels.contiguous().data<float>(),
 	  dL_dmeans3D.contiguous().data<float>(),
 	  dL_dcov3D.contiguous().data<float>(),
 	  dL_dsh.contiguous().data<float>(),
@@ -211,7 +227,8 @@ std::tuple<torch::Tensor, torch::Tensor, torch::Tensor, torch::Tensor, torch::Te
 	  debug);
   }
 
-  return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dsemantic_feature, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations); /***/ /**********/
+//   return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dsemantic_feature, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations); /***/ /**********/
+     return std::make_tuple(dL_dmeans2D, dL_dcolors, dL_dlabels, dL_dopacity, dL_dmeans3D, dL_dcov3D, dL_dsh, dL_dscales, dL_drotations); /***/ /**********/
 }
 
 torch::Tensor markVisible(

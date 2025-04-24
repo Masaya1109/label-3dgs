@@ -104,25 +104,28 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
     else:
         render_path = os.path.join(model_path, name, "ours_{}".format(iteration), "renders")
         gts_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt")
-        feature_map_path = os.path.join(model_path, name, "ours_{}".format(iteration), "feature_map")
-        gt_feature_map_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt_feature_map")
-        saved_feature_path = os.path.join(model_path, name, "ours_{}".format(iteration), "saved_feature")
+        # feature_map_path = os.path.join(model_path, name, "ours_{}".format(iteration), "feature_map")
+        # gt_feature_map_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt_feature_map")
+        label_path = os.path.join(model_path, name, "ours_{}".format(iteration), "labels")
+        gt_label_path = os.path.join(model_path, name, "ours_{}".format(iteration), "gt_labels")
+        # saved_feature_path = os.path.join(model_path, name, "ours_{}".format(iteration), "saved_feature")
+        saved_label_path = os.path.join(model_path, name, "ours_{}".format(iteration), "saved_labels")
         #encoder_ckpt_path = os.path.join(model_path, "encoder_chkpnt{}.pth".format(iteration))
         decoder_ckpt_path = os.path.join(model_path, "decoder_chkpnt{}.pth".format(iteration))
         depth_path = os.path.join(model_path, name, "ours_{}".format(iteration), "depth") ###
         
-        if speedup:
-            gt_feature_map = views[0].semantic_feature.cuda()
-            feature_out_dim = gt_feature_map.shape[0]
-            feature_in_dim = int(feature_out_dim/4)
-            cnn_decoder = CNN_decoder(feature_in_dim, feature_out_dim)
-            cnn_decoder.load_state_dict(torch.load(decoder_ckpt_path))
+        # if speedup:
+        #     gt_feature_map = views[0].semantic_feature.cuda()
+        #     feature_out_dim = gt_feature_map.shape[0]
+        #     feature_in_dim = int(feature_out_dim/4)
+        #     cnn_decoder = CNN_decoder(feature_in_dim, feature_out_dim)
+        #     cnn_decoder.load_state_dict(torch.load(decoder_ckpt_path))
         
         makedirs(render_path, exist_ok=True)
         makedirs(gts_path, exist_ok=True)
-        makedirs(feature_map_path, exist_ok=True)
-        makedirs(gt_feature_map_path, exist_ok=True)
-        makedirs(saved_feature_path, exist_ok=True)
+        makedirs(label_path, exist_ok=True)
+        makedirs(gt_label_path, exist_ok=True)
+        makedirs(saved_label_path, exist_ok=True)
         makedirs(depth_path, exist_ok=True) ###
 
     for idx, view in enumerate(tqdm(views, desc="Rendering progress")):
@@ -135,8 +138,8 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
             # visualize feature map
             feature_map = render_pkg["feature_map"]
             feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) ###
-            if speedup:
-                feature_map = cnn_decoder(feature_map)
+            # if speedup:
+            #     feature_map = cnn_decoder(feature_map)
 
             feature_map_vis = feature_visualize_saving(feature_map)
             Image.fromarray((feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(edit_feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))
@@ -147,7 +150,8 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
             render_pkg = render(view, gaussians, pipeline, background) 
 
             gt = view.original_image[0:3, :, :]
-            gt_feature_map = view.semantic_feature.cuda() 
+            # gt_feature_map = view.semantic_feature.cuda()
+            gt_label = view.label
             torchvision.utils.save_image(render_pkg["render"], os.path.join(render_path, '{0:05d}'.format(idx) + ".png")) 
             torchvision.utils.save_image(gt, os.path.join(gts_path, '{0:05d}'.format(idx) + ".png"))
             
@@ -165,20 +169,50 @@ def render_set(model_path, name, iteration, views, gaussians, pipeline, backgrou
             ##############
 
             # visualize feature map
-            feature_map = render_pkg["feature_map"] 
-            feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) ###
-            if speedup:
-                feature_map = cnn_decoder(feature_map)
+            # feature_map = render_pkg["feature_map"] 
+            # feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) ###
+            label = render_pkg["label"]
 
-            feature_map_vis = feature_visualize_saving(feature_map)
-            Image.fromarray((feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))
-            gt_feature_map_vis = feature_visualize_saving(gt_feature_map)
-            Image.fromarray((gt_feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(gt_feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))
+            np.random.seed(42) 
+            # colors = np.random.randint(0, 256, (32, 3))
+            colors = np.random.randint(0, 256, (50, 3))
+            # colors = np.random.randint(0, 256, (66, 3))
+            label_map = label.argmax(0).cpu().numpy()
 
-            # save feature map
-            feature_map = feature_map.cpu().numpy().astype(np.float16)
-            torch.save(torch.tensor(feature_map).half(), os.path.join(saved_feature_path, '{0:05d}'.format(idx) + "_fmap_CxHxW.pt"))
+            height, width = label_map.shape
+            label_image = np.zeros((height, width, 3), dtype=np.uint8)
+            gt_label_image = np.zeros((height, width, 3), dtype=np.uint8)
 
+            # ラベルごとに色を割り当てる
+            # for label in range(32):
+            for label in range(50):
+                label_image[label_map == label] = colors[label]
+                # gt_label_image[gt_label == label] = colors[gt_label]
+
+            label_img = Image.fromarray(label_image)
+            label_output_path = os.path.join(label_path, '{0:05d}'.format(idx) + ".png")
+            label_img.save(label_output_path)
+            
+            # gt_label_img = Image.fromarray(gt_label_image)
+            # gt_label_output_path = os.path.join(gt_label_path, '{0:05d}'.format(idx) + ".png")
+            # gt_label_img.save(gt_label_output_path)
+
+
+
+            # if speedup:
+            #     feature_map = cnn_decoder(feature_map)
+
+            # feature_map_vis = feature_visualize_saving(feature_map)
+            # Image.fromarray((feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))
+            # gt_feature_map_vis = feature_visualize_saving(gt_feature_map)
+            # Image.fromarray((gt_feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(gt_feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))
+
+            # # save feature map
+            # feature_map = feature_map.cpu().numpy().astype(np.float16)
+            # torch.save(torch.tensor(feature_map).half(), os.path.join(saved_feature_path, '{0:05d}'.format(idx) + "_fmap_CxHxW.pt"))
+            
+            # save label map
+            torch.save(torch.tensor(label_map), os.path.join(saved_label_path, '{0:05d}'.format(idx) + "_label_CxHxW.pt"))
 
 def render_video(model_path, iteration, views, gaussians, pipeline, background, edit_config): ###
     render_path = os.path.join(model_path, 'video', "ours_{}".format(iteration))
@@ -255,12 +289,12 @@ def render_novel_views(model_path, name, iteration, views, gaussians, pipeline, 
         #encoder_ckpt_path = os.path.join(model_path, "encoder_chkpnt{}.pth".format(iteration))
         decoder_ckpt_path = os.path.join(model_path, "decoder_chkpnt{}.pth".format(iteration))
 
-        if speedup:
-            gt_feature_map = views[0].semantic_feature.cuda()
-            feature_out_dim = gt_feature_map.shape[0]
-            feature_in_dim = int(feature_out_dim/4)
-            cnn_decoder = CNN_decoder(feature_in_dim, feature_out_dim)
-            cnn_decoder.load_state_dict(torch.load(decoder_ckpt_path))
+        # if speedup:
+        #     gt_feature_map = views[0].semantic_feature.cuda()
+        #     feature_out_dim = gt_feature_map.shape[0]
+        #     feature_in_dim = int(feature_out_dim/4)
+        #     cnn_decoder = CNN_decoder(feature_in_dim, feature_out_dim)
+        #     cnn_decoder.load_state_dict(torch.load(decoder_ckpt_path))
         
         makedirs(render_path, exist_ok=True)
         makedirs(feature_map_path, exist_ok=True)
@@ -292,8 +326,8 @@ def render_novel_views(model_path, name, iteration, views, gaussians, pipeline, 
             # visualize feature map
             feature_map = render_pkg["feature_map"] 
             feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) ###
-            if speedup:
-                feature_map = cnn_decoder(feature_map)
+            # if speedup:
+            #     feature_map = cnn_decoder(feature_map)
 
             feature_map_vis = feature_visualize_saving(feature_map)
             Image.fromarray((feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(edit_feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))
@@ -306,8 +340,8 @@ def render_novel_views(model_path, name, iteration, views, gaussians, pipeline, 
             # visualize feature map
             feature_map = render_pkg["feature_map"]
             feature_map = F.interpolate(feature_map.unsqueeze(0), size=(gt_feature_map.shape[1], gt_feature_map.shape[2]), mode='bilinear', align_corners=True).squeeze(0) ###
-            if speedup:
-                feature_map = cnn_decoder(feature_map)
+            # if speedup:
+            #     feature_map = cnn_decoder(feature_map)
 
             feature_map_vis = feature_visualize_saving(feature_map)
             Image.fromarray((feature_map_vis.cpu().numpy() * 255).astype(np.uint8)).save(os.path.join(feature_map_path, '{0:05d}'.format(idx) + "_feature_vis.png"))

@@ -266,14 +266,16 @@ renderCUDA(
 	int W, int H,
 	const float2* __restrict__ points_xy_image,
 	const float* __restrict__ features,
-	const float* __restrict__ semantics,
+	// const float* __restrict__ semantics,
+	const float* __restrict__ labels,
 	const float* __restrict__ depths, 
 	const float4* __restrict__ conic_opacity,
 	float* __restrict__ final_T,
 	uint32_t* __restrict__ n_contrib,
 	const float* __restrict__ bg_color,
 	float* __restrict__ out_color,
-	float* __restrict__ out_feature_map,
+	// float* __restrict__ out_feature_map,
+	float* __restrict__ out_label,
 	float* __restrict__ out_depth) 
 {
 	// Identify current tile and associated min/max pixel range.
@@ -306,7 +308,8 @@ renderCUDA(
 	uint32_t contributor = 0;
 	uint32_t last_contributor = 0;
 	float C[CHANNELS] = { 0 };
-	float SF[NUM_SEMANTIC_CHANNELS] = { 0 };
+	// float SF[NUM_SEMANTIC_CHANNELS] = { 0 };
+	float SL[NUM_CLASSES] = { 0 };
 	float D = { 0 };
 
 	// Iterate over batches until all done or range is complete
@@ -367,8 +370,11 @@ renderCUDA(
 			float w = alpha*T;
 			D += depp*w;
 			
-			for (int ch = 0; ch < NUM_SEMANTIC_CHANNELS; ch++){
-				SF[ch] += semantics[collected_id[j] * NUM_SEMANTIC_CHANNELS + ch] * alpha * T; 
+			// for (int ch = 0; ch < NUM_SEMANTIC_CHANNELS; ch++){
+			// 	SF[ch] += semantics[collected_id[j] * NUM_SEMANTIC_CHANNELS + ch] * alpha * T; 
+			// }
+			for (int ch = 0; ch < NUM_CLASSES; ch++){
+				SL[ch] += labels[collected_id[j] * NUM_CLASSES + ch] * alpha * T;
 			}
 
 			T = test_T;
@@ -389,9 +395,13 @@ renderCUDA(
 			out_color[ch * H * W + pix_id] = C[ch] + T * bg_color[ch];
 		// depth
 		out_depth[pix_id] = D;
-		// feature
-		for (int ch = 0; ch < NUM_SEMANTIC_CHANNELS; ch++)                 
-			out_feature_map[ch * H * W + pix_id] = SF[ch];
+		// // feature
+		// for (int ch = 0; ch < NUM_SEMANTIC_CHANNELS; ch++)                 
+		// 	out_feature_map[ch * H * W + pix_id] = SF[ch];
+		
+		// feaure label
+		for (int ch = 0; ch < NUM_CLASSES; ch++)
+			out_label[ch * H * W + pix_id] = SL[ch];
 	}
 }
 
@@ -402,14 +412,16 @@ void FORWARD::render(
 	int W, int H,
 	const float2* means2D,
 	const float* colors,
-	const float* semantic_feature,
+	// const float* semantic_feature,
+	const float* labels,
 	const float* depths, 
 	const float4* conic_opacity,
 	float* final_T,
 	uint32_t* n_contrib,
 	const float* bg_color,
 	float* out_color,
-	float* out_feature_map,
+	// float* out_feature_map,
+	float* out_label,
 	float* out_depth) 
 {
 	renderCUDA<NUM_CHANNELS> << <grid, block >> > (
@@ -418,14 +430,16 @@ void FORWARD::render(
 		W, H,
 		means2D,
 		colors,
-		semantic_feature,
+		// semantic_feature,
+		labels,
 		depths, 
 		conic_opacity,
 		final_T,
 		n_contrib,
 		bg_color,
 		out_color,
-		out_feature_map,
+		// out_feature_map,
+		out_label,
 		out_depth);
 }
 

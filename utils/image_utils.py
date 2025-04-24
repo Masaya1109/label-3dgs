@@ -151,8 +151,10 @@ def render_net_image(render_pkg, render_items, render_mode, camera):
         net_image = depth_to_normal(render_pkg["depth"], camera).permute(2,0,1)
         net_image = (net_image+1)/2
         net_image = gradient_map(net_image)
-    elif output == 'feature map':
-        net_image = feature_map(render_pkg['feature_map'])
+    # elif output == 'feature map':
+    #     net_image = feature_map(render_pkg['feature_map'])
+    elif output == 'label':
+        net_image = label(render_pkg['label'])
     else:
         net_image = render_pkg["render"]
 
