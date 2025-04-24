@@ -60,6 +60,15 @@ def calculate_accuracy(teacher, student):
     total_pixels = np.prod(teacher.shape)
     return correct_predictions / total_pixels
 
+def calculate_accuracy_2(pred, target):
+    device = pred.device
+    target = target.to(device)
+    
+    correct = torch.sum(pred == target).item()
+    total = target.numel()
+    accuracy = correct / total
+    return accuracy
+
 def calculate_accuracy_mask(gt, teacher, student, i):
     mask = np.equal(gt, teacher)
     mask = np.squeeze(mask)
@@ -88,6 +97,23 @@ def calculate_iou(teacher, student, num_classes):
         iou_score = np.sum(intersection) / np.sum(union)
         iou.append(iou_score)
     return np.nanmean(iou)  
+
+
+def calculate_iou_2(pred, target, num_classes):
+    device = pred.device
+    target = target.to(device)
+    
+    ious = []
+    for c in range(num_classes):
+        TP = torch.sum((pred == c) & (target == c)).item()
+        FP = torch.sum((pred == c) & (target != c)).item()
+        FN = torch.sum((pred != c) & (target == c)).item()
+        
+        iou = TP / (TP + FP + FN) if (TP + FP + FN) > 0 else float('nan')
+        ious.append(iou)
+    
+    mIoU = torch.nanmean(torch.tensor(ious)).item()
+    return mIoU
 
 def calculate_iou_mask(gt, teacher, student, num_classes):
     iou = []
@@ -384,7 +410,6 @@ class FeatureImageFolderLoader(enc_ds.ADE20KSegmentation):#(torch.utils.data.Dat
         self.transform = transform
         self.student_feature_root = student_feature_root
         self.teacher_feature_root = teacher_feature_root
-        print(self.teacher_feature_root)
         # self.gt_label_root = gt_label_root
         self.image_root = image_root
 
@@ -802,12 +827,12 @@ def test(args):
             #                 element[0][j][k] = 4
             ############## resize to the same size as NeRF
             gt_predict = torch.from_numpy(gt_predict).float()
-            gt_predict = F.interpolate(gt_predict.unsqueeze(0), size=(119, 159), mode='nearest').squeeze(0)
-            gt_predict = gt_predict.long().numpy()  # Convert back to numpy array
+            # gt_predict = F.interpolate(gt_predict.unsqueeze(0), size=(119, 159), mode='nearest').squeeze(0)
+            # gt_predict = gt_predict.long().numpy()  # Convert back to numpy array
 
             pred_predict = torch.from_numpy(pred_predict).float()
-            pred_predict = F.interpolate(pred_predict.unsqueeze(0), size=(119, 159), mode='nearest').squeeze(0)
-            pred_predict = pred_predict.long().numpy()  # Convert back to numpy array
+            # pred_predict = F.interpolate(pred_predict.unsqueeze(0), size=(119, 159), mode='nearest').squeeze(0)
+            # pred_predict = pred_predict.long().numpy()  # Convert back to numpy array
 
             # gt_label = torch.from_numpy(gt_label).float()
             # gt_label = F.interpolate(gt_label.unsqueeze(0), size=(119, 159), mode='nearest').squeeze(0)
@@ -816,21 +841,25 @@ def test(args):
 
 
 
-            accuracy = calculate_accuracy(gt_predict, pred_predict)
+            # accuracy = calculate_accuracy(gt_predict, pred_predict)
+            accuracy = calculate_accuracy_2(gt_predict, pred_predict)
             # accuracy_mask = calculate_accuracy_mask(gt_label, gt_predict, pred_predict, i)
-            iou = calculate_iou(gt_predict, pred_predict, 7)
+            # iou = calculate_iou(gt_predict, pred_predict, 7)
+            iou = calculate_iou_2(gt_predict, pred_predict, 66)
             # iou_mask = calculate_iou_mask(gt_label, gt_predict, pred_predict, 7)
 
-            print("teacher", gt_predict)
-            print(gt_predict.shape)
-            print("student", pred_predict)
+            # print("teacher", gt_predict)
+            # print(gt_predict.shape)
+            # print("student", pred_predict)
             # print("gt", gt_label)
             accuracy_accum += accuracy
             iou_accum += iou
             # print(f"for the {i}th image, the accuracy is {accuracy}, accuracy with mask is {accuracy_mask}, iou is {iou}, iou with mask is{iou_mask}")
             print(f"for the {i}th image, the accuracy is {accuracy}, iou is {iou}")
+            # print(f"for the {i}th image,iou is {iou}")
 
             print(f'the average accuracy is {accuracy_accum/count}, average iou is {iou_accum/count}')
+            # print(f'the average iou is {iou_accum/count}')
             # print("?????????????????????????????????????????????????????????????????????", mask_pred.shape)   #tensors([360, 480, 3])
 
 
