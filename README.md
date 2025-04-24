@@ -1,32 +1,11 @@
-# Feature 3DGS 🪄: Supercharging 3D Gaussian Splatting to Enable Distilled Feature Fields
+# Label-3DGS
 
+Masaya Takabe
 
-Shijie Zhou, Haoran Chang*, Sicheng Jiang*, Zhiwen Fan, Zehao Zhu, Dejia Xu, Pradyumna Chari, Suya You, Zhangyang Wang, Achuta Kadambi (* indicates equal contribution)<br>
-| [Webpage](https://feature-3dgs.github.io/) | [Full Paper](https://arxiv.org/abs/2312.03203) | [Video](https://www.youtube.com/watch?v=h4zmQsCV_Qw) | [Viewer Pre-built for Windows](https://drive.google.com/file/d/1DRFrtFUfz27QvQKOWbYXbRS2o2eSgaUT/view?usp=sharing)<br>
-![Teaser image](assets/teaser_v5_2.png) 
-
-<!-- <a href="https://www.inria.fr/"><img height="100" src="assets/logo_inria.png"> </a>
-<a href="https://univ-cotedazur.eu/"><img height="100" src="assets/logo_uca.png"> </a>
-<a href="https://www.mpi-inf.mpg.de"><img height="100" src="assets/logo_mpi.png"> </a> 
-<a href="https://team.inria.fr/graphdeco/"> <img style="width:100%;" src="assets/logo_graphdeco.png"></a> -->
-
-Abstract: *3D scene representations have gained immense popularity in recent years. Methods that use Neural Radiance fields are versatile for traditional tasks such as novel view synthesis. In recent times, some work has emerged that aims to extend the functionality of NeRF beyond view synthesis, for semantically aware tasks such as editing and segmentation using 3D feature field distillation from 2D foundation models. However, these methods have two major limitations: (a) they are limited by the rendering speed of NeRF pipelines, and (b) implicitly represented feature fields suffer from continuity artifacts reducing feature quality. Recently, 3D Gaussian Splatting has shown state-of-the-art performance on real-time radiance field rendering. In this work, we go one step further: in addition to radiance field rendering, we enable 3D Gaussian splatting on arbitrary-dimension semantic features via 2D foundation model distillation. This translation is not straightforward: naively incorporating feature fields in the 3DGS framework encounters significant challenges, notably the disparities in spatial resolution and channel consistency between RGB images and feature maps. We propose architectural and training changes to efficiently avert this problem. Our proposed method is general, and our experiments showcase novel view semantic segmentation, language-guided editing and segment anything through learning feature fields from state-of-the-art 2D foundation models such as SAM and CLIP-LSeg. Across experiments, our distillation method is able to provide comparable or better results, while being significantly faster to both train and render. Additionally, to the best of our knowledge, we are the first method to enable point and bounding-box prompting for radiance field manipulation, by leveraging the SAM model.*
-
-<section class="section" id="BibTeX">
-  <div class="container is-max-desktop content">
-    <h2 class="title">BibTeX</h2>
-    <pre><code>@inproceedings{zhou2024feature,
-  title={Feature 3dgs: Supercharging 3d gaussian splatting to enable distilled feature fields},
-  author={Zhou, Shijie and Chang, Haoran and Jiang, Sicheng and Fan, Zhiwen and Zhu, Zehao and Xu, Dejia and Chari, Pradyumna and You, Suya and Wang, Zhangyang and Kadambi, Achuta},
-  booktitle={Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition},
-  pages={21676--21685},
-  year={2024}
-}</code></pre>
-  </div>
-</section>
-
+Abstract: 
 
 # Environment setup
+It's the same process as original Feature-3DGS.
 Our default, provided install method is based on Conda package and environment management:
 <!-- ```
 conda env create --file environment.yml
@@ -153,85 +132,11 @@ This may produces large feature map files in `--outdir` (100-200MB per file).
 
 Run train.py. If reconstruction fails, change `--scale 4.0` to smaller or larger values, e.g., `--scale 1.0` or `--scale 16.0`.
 
-
-
-
-
-## SAM encoder
-
-### Installation
-
-The code requires `python>=3.8`, as well as `pytorch>=1.7` and `torchvision>=0.8`. Please follow the instructions [here](https://pytorch.org/get-started/locally/) to install both PyTorch and TorchVision dependencies. Installing both PyTorch and TorchVision with CUDA support is strongly recommended.
-
-SAM setup:
-```
-cd encoders/sam_encoder
-pip install -e .
-```
-
-Pretrain model download:
-
-Click the links below to download the checkpoint for the corresponding model type.
-
-- **`default` or `vit_h`: [ViT-H SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_h_4b8939.pth)**
-- `vit_l`: [ViT-L SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_l_0b3195.pth)
-- `vit_b`: [ViT-B SAM model.](https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth)
-
-And place it under the folder: ```
-encoders/sam_encoder/checkpoints```
-
-<!-- The following optional dependencies are necessary for mask post-processing, saving masks in COCO format.
-
-```
-pip install opencv-python pycocotools matplotlib onnxruntime onnx
-``` -->
-
-### Feature embedding
-Run the following to export the image embeddings of an input image or directory of images.
-```
-cd encoders/sam_encoder
-python export_image_embeddings.py --checkpoint checkpoints/sam_vit_h_4b8939.pth --model-type vit_h --input ../../data/DATASET_NAME/images  --output ../../data/OUTPUT_NAME/sam_embeddings
-```
-
-
-
 # Training, Rendering, and Inference: 
-
-## 🔥 New features: Multi-functional Interactive Viewer (optional)
-We are glad to introduce a brand new Multi-functional Interactive Viewer for the visualization of *RGB*, *Depth*, *Edge*, *Normal*, *Curvature*, and especially <span style="color: orange;">***semantic feature***</span>. The Pre-built Viewer for Windows is placed in `viewer_windows` and can also be downloaded [here](https://drive.google.com/file/d/1DRFrtFUfz27QvQKOWbYXbRS2o2eSgaUT/view?usp=sharing). If your OS is Ubuntu 22.04, you need to compile the viewer locally:
-```shell
-# Dependencies
-sudo apt install -y libglew-dev libassimp-dev libboost-all-dev libgtk-3-dev libopencv-dev libglfw3-dev libavdevice-dev libavcodec-dev libeigen3-dev libxxf86vm-dev libembree-dev
-# Project setup
-cd SIBR_viewers
-cmake -Bbuild . -DCMAKE_BUILD_TYPE=Release # add -G Ninja to build faster
-cmake --build build -j24 --target install
-```
-
-You can visit [GS Monitor](https://github.com/RongLiu-Leo/Gaussian-Splatting-Monitor) for more details.
-
-
-https://github.com/RongLiu-Leo/feature-3dgs/assets/102014841/7baf236f-29bc-4de1-9a99-97d528f6e63e
-### How to use
-Firstly run the viewer, 
-```shell
-./viewer_windows/bin/SIBR_remoteGaussian_app_rwdi # Windows
-```
-or
-
-```shell
-./<SIBR install dir>/bin/SIBR_remoteGaussian_app # Ubuntu 22.04
-```
-and then
-
-1. If you want to monitor the training process, run `train.py`, see [Train](#train) section for more details. 
-
-2. If you prefer faster training, run `view.py` to interact with your trained model once training is complete. See [View the Trained Model](#view-the-trained-model) section for more details.
-
 
 ## Train
 ```
-python train.py -s data/DATASET_NAME -m output/OUTPUT_NAME -f lseg --speedup --iterations 7000
+python train.py -s data/train -m output/train_lseg -f lseg --speedup --iterations 7000
 ```
 <details>
 <summary><span style="font-weight: bold;">Command Line Arguments for train.py</span></summary>
@@ -349,24 +254,6 @@ pip install .
 pip install submodules/diff-gaussian-rasterization-feature
 ```
 
-## View the Trained Model
-After training, you can view your trained model directly while keep the viewer running by:
-```shell
-python view.py -s <path to COLMAP or NeRF Synthetic dataset> -m <path to trained model> -f lseg
-```
-<details>
-<summary><span style="font-weight: bold;">Important Command Line Arguments for view.py</span></summary>
-
-  #### --source_path / -s
-  Path to the source directory containing a COLMAP or Synthetic NeRF data set.
-  #### --model_path / -m 
-  Path where the trained model should be stored (```output/<random>``` by default).
-  #### --iteration
-  Specifies which of iteration to load.
-  #### -f
-  sam or lseg
-
-</details>
 <br>
 
 ## Render
