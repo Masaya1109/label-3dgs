@@ -136,7 +136,7 @@ Run train.py. If reconstruction fails, change `--scale 4.0` to smaller or larger
 
 ## Train
 ```
-python train.py -s data/train -m output/train_lseg -f lseg --speedup --iterations 7000
+python train.py -s data/DATASET_NAME -m output/OUTPUT_NAME -f lseg --speedup --iterations 7000
 ```
 <details>
 <summary><span style="font-weight: bold;">Command Line Arguments for train.py</span></summary>
@@ -259,7 +259,7 @@ pip install submodules/diff-gaussian-rasterization-feature
 ## Render
 1. Render from training and test views:
 ```
-python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME  --iteration 3000
+python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME  --iteration 7000
 ```
 <details>
 <summary><span style="font-weight: bold;">Command Line Arguments for render.py</span></summary>
@@ -292,16 +292,6 @@ python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME  --iteration 3000
 
 </details>
 
-2. Render from novel views (add `--novel_view`):
-```
-python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME -f lseg --iteration 3000 --novel_view
-```
-(Add numbers after `--num_views` to change number of views, e.g. `--num_views 100`, default number is 200)
-
-3. Render from novel views using multiple interpolations (add `--novel_view` and `--multi_interpolate`):
-```
-python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME -f lseg --iteration 3000 --novel_view --multi_interpolate
-```
 
 ### Render with editing:
 ```
@@ -331,29 +321,6 @@ cd encoders/lseg_encoder
 python -u segmentation_metric.py --backbone clip_vitl16_384 --weights demo_e200.ckpt --widehead --no-scaleinv --student-feature-dir ../../output/OUTPUT_NAME/test/ours_30000/saved_feature/ --teacher-feature-dir ../../data/DATASET_NAME/rgb_feature_langseg/ --test-rgb-dir ../../output/OUTPUT_NAME/test/ours_30000/renders/ --workers 0 --eval-mode test
 ```
 
-### SAM encoder:
-### Segment from trained model's embedding with prompt (onnx)
-Run with following (add `--image` to encode features from images): 
-1. Run with given input point coordinate (e.g. add `--point 500 800`):
-```
-python segment_prompt.py --checkpoint checkpoints/sam_vit_h_4b8939.pth --model-type vit_h --data ../../output/OUTPUT_NAME --iteration 7000 --point 500 800
-```
-2. Run with given input box (e.g. add `--box 100 100 1500 1200`):
-```
-python segment_prompt.py --checkpoint checkpoints/sam_vit_h_4b8939.pth --model-type vit_h --data ../../output/OUTPUT_NAME --iteration 7000 --box 100 100 1500 1200
-```
-3. Run with given input point (negative) and box (e.g. add `--point 500 800` and `--box 100 100 1500 1200`):
-```
-python segment_prompt.py --checkpoint checkpoints/sam_vit_h_4b8939.pth --model-type vit_h --data ../../output/OUTPUT_NAME --iteration 7000 --box 100 100 1500 1200 --point 500 800
-```
-(Add`--onnx_path` to change onnx path)
-
-
-### Segment from trained model's embedding with no prompt (segment entire image)
-Run with following (add `--image` to encode features from images):
-```
-python segment.py --checkpoint checkpoints/sam_vit_h_4b8939.pth --model-type vit_h --data ../../output/OUTPUT_NAME --iteration 7000
-```
 
 ### Timing while segment from trained model's embedding with no prompt
 Run with following (remove `--feature_path` to encode features directly from images):
