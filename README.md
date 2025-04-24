@@ -221,27 +221,7 @@ python train.py -s data/DATASET_NAME -m output/OUTPUT_NAME -f lseg --speedup --i
 ### Gaussian Rasterization with High-dimensional Features
 You can customize `NUM_SEMANTIC_CHANNELS` in `submodules/diff-gaussian-rasterization-feature/cuda_rasterizer/config.h` for any number of feature dimension that you want: 
 
-- Customize `NUM_SEMANTIC_CHANNELS` in `config.h`.
-
-If you would like to use the optional CNN speed-up module, do the following accordingly:
-
-- Customize `NUMBER` in `semantic_feature_size/NUMBER` in `scene/gaussian_model.py` in line 142.
-- Customize `NUMBER` in `feature_out_dim/NUMBER` in `train.py` in line 51.
-- Customize `NUMBER` in `feature_out_dim/NUMBER` in `render.py` in line 117 and 261. 
-
-where `feature_out_dim` / `NUMBER` = `NUM_SEMANTIC_CHANNELS`. The `feature_out_dim` matches the ground truth foundation model dimensions, 512 for LSeg and 256 for SAM. The default `NUMBER = 4`. For your reference, here are 4 configurations of runing `train.py`:
-
-For langage-guided editing:
-
-`-f lseg` with `NUM_SEMANTIC_CHANNELS` `512`* (No speed-up for this task).
-
-For segmentation tasks:
-
-`-f lseg --speedup` with `NUM_SEMANTIC_CHANNELS` `128`, `NUMBER = 4`*.
-
-`-f sam` with `NUM_SEMANTIC_CHANNELS` `256`.
-
-`-f sam --speedup` with `NUM_SEMANTIC_CHANNELS` `64`, `NUMBER = 4`*.
+- Customize `NUM_CLASSES` in `config.h`.
 
 *: setup used in our experiments
 #### Notice:
@@ -292,30 +272,21 @@ python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME  --iteration 7000
 
 </details>
 
-
-### Render with editing:
-```
-python render.py -s data/DATASET_NAME -m output/OUTPUT_NAME -f lseg --iteration 3000 --edit_config configs/XXX.yaml
-```
-
-### Generate videos:
-Run to create videos (add `--fps` to change FPS, e.g. `--fps 20` default is 10):
-```
-python videos.py --data output/OUTPUT_NAME --fps 10 -f lseg  --iteration 10000 
-```
 ## Inference
 ### LSeg encoder:
 ### Segment from trained model
 1. Run the following to segment with 150 labels (default is [ADE20K](https://groups.csail.mit.edu/vision/datasets/ADE20K/)):
 ```shell
-python -u segmentation.py --data ../../output/DATASET_NAME/ --iteration 6000
-```
-2. Run the following to segment with self-defined label set (e.g. add `--label_src car,building,tree`):
-```shell
-python -u segmentation.py --data ../../output/DATASET_NAME/ --iteration 6000 --label_src car,building,tree
+python -u segmentation.py --data ../../output/DATASET_NAME/ --iteration 7000
 ```
 
-Calculate segmentaion metric (for Replica dataset experiment, our preprocessed data can be downloaded [here](https://drive.google.com/file/d/1sC2ZJUBRHKeWXXVUj7rIBEM-xaibvGw7/view?usp=sharing)):
+Calculate segmentaion metric of Label-3DGS (for Replica dataset experiment, our preprocessed data can be downloaded [here](https://drive.google.com/file/d/1sC2ZJUBRHKeWXXVUj7rIBEM-xaibvGw7/view?usp=sharing)):
+```shell
+cd encoders/lseg_encoder
+python segmentation_metric_2.py --teacher-label-dir ../../data/train/rgb_feature_langseg/ --student-label-dir ../../output/train_lseg_eval_4/test/ours_30000/saved_labels/ --eval-mode test
+```
+
+Calculate segmentaion metric of original Feature-3DGS (for Replica dataset experiment, our preprocessed data can be downloaded [here](https://drive.google.com/file/d/1sC2ZJUBRHKeWXXVUj7rIBEM-xaibvGw7/view?usp=sharing)):
 ```shell
 cd encoders/lseg_encoder
 python -u segmentation_metric.py --backbone clip_vitl16_384 --weights demo_e200.ckpt --widehead --no-scaleinv --student-feature-dir ../../output/OUTPUT_NAME/test/ours_30000/saved_feature/ --teacher-feature-dir ../../data/DATASET_NAME/rgb_feature_langseg/ --test-rgb-dir ../../output/OUTPUT_NAME/test/ours_30000/renders/ --workers 0 --eval-mode test
